@@ -352,7 +352,6 @@ spec:
         - --metrics-bind-address=:8443
         - --leader-elect
         - --health-probe-bind-address=:8081
-        - --metrics-cert-path=/tmp/k8s-metrics-server/metrics-certs
         - --webhook-cert-path=/tmp/k8s-webhook-server/serving-certs
         command:
         - /manager
@@ -387,9 +386,6 @@ spec:
             drop:
             - ALL
         volumeMounts:
-        - mountPath: /tmp/k8s-metrics-server/metrics-certs
-          name: metrics-certs
-          readOnly: true
         - mountPath: /tmp/k8s-webhook-server/serving-certs
           name: webhook-certs
           readOnly: true
@@ -400,65 +396,9 @@ spec:
       serviceAccountName: newpet-controller-manager
       terminationGracePeriodSeconds: 10
       volumes:
-      - name: metrics-certs
-        secret:
-          items:
-          - key: ca.crt
-            path: ca.crt
-          - key: tls.crt
-            path: tls.crt
-          - key: tls.key
-            path: tls.key
-          optional: false
-          secretName: metrics-server-cert
       - name: webhook-certs
         secret:
           secretName: webhook-server-cert
----
-apiVersion: cert-manager.io/v1
-kind: Certificate
-metadata:
-  labels:
-    app.kubernetes.io/managed-by: kustomize
-    app.kubernetes.io/name: newpet
-  name: newpet-metrics-certs
-  namespace: newpet-system
-spec:
-  dnsNames:
-  - newpet-controller-manager-metrics-service.newpet-system.svc
-  - newpet-controller-manager-metrics-service.newpet-system.svc.cluster.local
-  issuerRef:
-    kind: Issuer
-    name: newpet-selfsigned-issuer
-  secretName: metrics-server-cert
----
-apiVersion: cert-manager.io/v1
-kind: Certificate
-metadata:
-  labels:
-    app.kubernetes.io/managed-by: kustomize
-    app.kubernetes.io/name: newpet
-  name: newpet-serving-cert
-  namespace: newpet-system
-spec:
-  dnsNames:
-  - newpet-webhook-service.newpet-system.svc
-  - newpet-webhook-service.newpet-system.svc.cluster.local
-  issuerRef:
-    kind: Issuer
-    name: newpet-selfsigned-issuer
-  secretName: webhook-server-cert
----
-apiVersion: cert-manager.io/v1
-kind: Issuer
-metadata:
-  labels:
-    app.kubernetes.io/managed-by: kustomize
-    app.kubernetes.io/name: newpet
-  name: newpet-selfsigned-issuer
-  namespace: newpet-system
-spec:
-  selfSigned: {}
 ---
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
@@ -476,19 +416,7 @@ spec:
     port: https
     scheme: https
     tlsConfig:
-      ca:
-        secret:
-          key: ca.crt
-          name: metrics-server-cert
-      cert:
-        secret:
-          key: tls.crt
-          name: metrics-server-cert
-      insecureSkipVerify: false
-      keySecret:
-        key: tls.key
-        name: metrics-server-cert
-      serverName: newpet-controller-manager-metrics-service.newpet-system.svc
+      insecureSkipVerify: true
   selector:
     matchLabels:
       app.kubernetes.io/name: newpet
@@ -497,8 +425,6 @@ spec:
 apiVersion: admissionregistration.k8s.io/v1
 kind: MutatingWebhookConfiguration
 metadata:
-  annotations:
-    cert-manager.io/inject-ca-from: newpet-system/newpet-serving-cert
   name: newpet-mutating-webhook-configuration
 webhooks:
 - admissionReviewVersions:
@@ -525,8 +451,6 @@ webhooks:
 apiVersion: admissionregistration.k8s.io/v1
 kind: ValidatingWebhookConfiguration
 metadata:
-  annotations:
-    cert-manager.io/inject-ca-from: newpet-system/newpet-serving-cert
   name: newpet-validating-webhook-configuration
 webhooks:
 - admissionReviewVersions:
