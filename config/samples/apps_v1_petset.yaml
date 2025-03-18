@@ -1,0 +1,9 @@
+apiVersion: apps.k8s.appscode.com/v1
+kind: PetSet
+metadata:
+  labels:
+    app.kubernetes.io/name: newpet
+    app.kubernetes.io/managed-by: kustomize
+  name: petset-sample
+spec:
+  # TODO(user): Add fields here
